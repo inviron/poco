@@ -14,6 +14,7 @@
 
 #include "Poco/Environment_WIN32.h"
 #include "Poco/Exception.h"
+#include "Poco/UnicodeConverter.h"
 #include <sstream>
 #include <cstring>
 #include "Poco/UnWindows.h"
@@ -86,7 +87,14 @@ std::string EnvironmentImpl::osDisplayNameImpl()
 		switch (vi.dwMinorVersion)
 		{
 		case 0:
-			return vi.wProductType == VER_NT_WORKSTATION ? "Windows 10" : "Windows Server 2016";
+			if (vi.dwBuildNumber >= 22000)
+				return "Windows 11";
+			else if (vi.dwBuildNumber >= 20348 && vi.wProductType != VER_NT_WORKSTATION)
+				return "Windows Server 2022";
+			else if (vi.dwBuildNumber >= 17763 && vi.wProductType != VER_NT_WORKSTATION)
+				return "Windows Server 2019";
+			else
+				return vi.wProductType == VER_NT_WORKSTATION ? "Windows 10" : "Windows Server 2016";
 		}
 	case 6:
 		switch (vi.dwMinorVersion)
@@ -122,12 +130,14 @@ std::string EnvironmentImpl::osDisplayNameImpl()
 
 std::string EnvironmentImpl::osVersionImpl()
 {
-	OSVERSIONINFO vi;
+	OSVERSIONINFOW vi;
 	vi.dwOSVersionInfoSize = sizeof(vi);
-	if (GetVersionEx(&vi) == 0) throw SystemException("Cannot get OS version information");
+	if (GetVersionExW(&vi) == 0) throw SystemException("Cannot get OS version information");
 	std::ostringstream str;
 	str << vi.dwMajorVersion << "." << vi.dwMinorVersion << " (Build " << (vi.dwBuildNumber & 0xFFFF);
-	if (vi.szCSDVersion[0]) str << ": " << vi.szCSDVersion;
+	std::string version;
+	UnicodeConverter::toUTF8(vi.szCSDVersion, version);
+	if (!version.empty()) str << ": " << version;
 	str << ")";
 	return str.str();
 }
